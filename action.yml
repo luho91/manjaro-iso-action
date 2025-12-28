@@ -171,18 +171,19 @@ runs:
         mkdir -p archlinux-keyring
         pushd archlinux-keyring
         
-          # Get latest package name from mirror directory listing (no archlinux.org)
-          pkg="$(curl -fsSL --retry 8 --retry-connrefused --retry-delay 2 \
-            https://geo.mirror.pkgbuild.com/core/os/any/ \
-            | grep -oE 'archlinux-keyring-[0-9][^"]+\.pkg\.tar\.zst' \
-            | sort -V | tail -n1)"
+          # Get current filename from Arch JSON (stable), then download from mirror
+          pkg="$(curl -fsSL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
+            https://archlinux.org/packages/core/any/archlinux-keyring/json/ \
+            | grep -oE '"filename"\s*:\s*"[^"]+\.pkg\.tar\.zst"' \
+            | head -n1 \
+            | sed -E 's/.*"filename"\s*:\s*"([^"]+)".*/\1/')"
         
           if [[ -z "${pkg}" ]]; then
-            echo "Failed to determine archlinux-keyring package filename from mirror" >&2
+            echo "Failed to fetch archlinux-keyring filename from JSON" >&2
             exit 1
           fi
         
-          curl -fL --retry 8 --retry-connrefused --retry-delay 2 \
+          curl -fL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
             -o /tmp/archlinux-keyring.pkg.tar.zst \
             "https://geo.mirror.pkgbuild.com/core/os/any/${pkg}"
         
@@ -194,7 +195,7 @@ runs:
           sudo install -m0644 archlinux-revoked /usr/share/pacman/keyrings/
         
         popd
-    
+
         sudo pacman-key --init
         sudo pacman-key --populate archlinux manjaro
     
