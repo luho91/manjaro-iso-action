@@ -167,35 +167,40 @@ runs:
           sudo install -m0644 manjaro-revoked /usr/share/pacman/keyrings/
         popd
     
+        # Arch keyring files (get filename via JSON, download package from mirror)
         sudo rm -rf archlinux-keyring
         mkdir -p archlinux-keyring
         pushd archlinux-keyring
-        
-          # Get current filename from Arch JSON (stable), then download from mirror
-          pkg="$(curl -fsSL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
+    
+        json="$(
+          curl -4fsSL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
             https://archlinux.org/packages/core/any/archlinux-keyring/json/ \
-            | grep -oE '"filename"\s*:\s*"[^"]+\.pkg\.tar\.zst"' \
-            | head -n1 \
-            | sed -E 's/.*"filename"\s*:\s*"([^"]+)".*/\1/')"
-        
-          if [[ -z "${pkg}" ]]; then
-            echo "Failed to fetch archlinux-keyring filename from JSON" >&2
-            exit 1
-          fi
-        
-          curl -fL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
-            -o /tmp/archlinux-keyring.pkg.tar.zst \
-            "https://geo.mirror.pkgbuild.com/core/os/any/${pkg}"
-        
-          tar --use-compress-program=unzstd --strip-components=4 --wildcards \
-            -xvf /tmp/archlinux-keyring.pkg.tar.zst usr/share/pacman/keyrings/*
-        
-          sudo install -m0644 archlinux.gpg /usr/share/pacman/keyrings/
-          sudo install -m0644 archlinux-trusted /usr/share/pacman/keyrings/
-          sudo install -m0644 archlinux-revoked /usr/share/pacman/keyrings/
-        
+          || curl -4fsSL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
+            https://archlinux.org/packages/core/any/archlinux-keyring/json/
+        )"
+    
+        pkg="$(python3 - <<'PY'
+import json,sys
+data=json.load(sys.stdin)
+print(data["filename"])
+PY
+        <<<"$json")"
+    
+        echo "archlinux-keyring package: $pkg"
+    
+        curl -fL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
+          -o /tmp/archlinux-keyring.pkg.tar.zst \
+          "https://geo.mirror.pkgbuild.com/core/os/any/${pkg}"
+    
+        tar --use-compress-program=unzstd --strip-components=4 --wildcards \
+          -xvf /tmp/archlinux-keyring.pkg.tar.zst usr/share/pacman/keyrings/*
+    
+        sudo install -m0644 archlinux.gpg /usr/share/pacman/keyrings/
+        sudo install -m0644 archlinux-trusted /usr/share/pacman/keyrings/
+        sudo install -m0644 archlinux-revoked /usr/share/pacman/keyrings/
+    
         popd
-
+    
         sudo pacman-key --init
         sudo pacman-key --populate archlinux manjaro
     
@@ -203,6 +208,7 @@ runs:
           sudo pacman-key --keyserver keys.openpgp.org --recv-key "$gpg_key"
           sudo pacman-key --lsign-key "$gpg_key"
         done
+
     - id: install-arch-install-scripts
       shell: bash
       env:
