@@ -167,31 +167,32 @@ runs:
           sudo install -m0644 manjaro-revoked /usr/share/pacman/keyrings/
         popd
     
-        # Arch keyring files (download package from mirror; avoid archlinux.org /download + avoid pacman -Sy)
         sudo rm -rf archlinux-keyring
         mkdir -p archlinux-keyring
         pushd archlinux-keyring
-    
-          pkg="$(curl -fsSL --retry 5 --retry-connrefused --retry-delay 2 \
-            https://archlinux.org/packages/core/any/archlinux-keyring/ \
-            | grep -oE 'archlinux-keyring-[0-9][^"]+\.pkg\.tar\.zst' | head -n1)"
-    
+        
+          # Get latest package name from mirror directory listing (no archlinux.org)
+          pkg="$(curl -fsSL --retry 8 --retry-connrefused --retry-delay 2 \
+            https://geo.mirror.pkgbuild.com/core/os/any/ \
+            | grep -oE 'archlinux-keyring-[0-9][^"]+\.pkg\.tar\.zst' \
+            | sort -V | tail -n1)"
+        
           if [[ -z "${pkg}" ]]; then
-            echo "Failed to determine archlinux-keyring package filename" >&2
+            echo "Failed to determine archlinux-keyring package filename from mirror" >&2
             exit 1
           fi
-    
-          curl -fL --retry 5 --retry-connrefused --retry-delay 2 \
+        
+          curl -fL --retry 8 --retry-connrefused --retry-delay 2 \
             -o /tmp/archlinux-keyring.pkg.tar.zst \
             "https://geo.mirror.pkgbuild.com/core/os/any/${pkg}"
-    
+        
           tar --use-compress-program=unzstd --strip-components=4 --wildcards \
             -xvf /tmp/archlinux-keyring.pkg.tar.zst usr/share/pacman/keyrings/*
-    
+        
           sudo install -m0644 archlinux.gpg /usr/share/pacman/keyrings/
           sudo install -m0644 archlinux-trusted /usr/share/pacman/keyrings/
           sudo install -m0644 archlinux-revoked /usr/share/pacman/keyrings/
-    
+        
         popd
     
         sudo pacman-key --init
