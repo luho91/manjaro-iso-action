@@ -158,7 +158,8 @@ runs:
     
         sudo install -dm755 /usr/share/pacman/keyrings/
     
-        # Manjaro keyring (still via git, fine)
+        # Manjaro keyring files
+        sudo rm -rf manjaro-keyring
         sudo git clone --depth 1 https://gitlab.manjaro.org/packages/core/manjaro-keyring.git
         pushd manjaro-keyring
           sudo install -m0644 manjaro.gpg /usr/share/pacman/keyrings/
@@ -166,24 +167,34 @@ runs:
           sudo install -m0644 manjaro-revoked /usr/share/pacman/keyrings/
         popd
     
-        # Initialize pacman keyring early
+        # Arch keyring files (download package from mirror; avoid archlinux.org /download + avoid pacman -Sy)
+        sudo rm -rf archlinux-keyring
+        mkdir -p archlinux-keyring
+        pushd archlinux-keyring
+    
+          pkg="$(curl -fsSL --retry 5 --retry-connrefused --retry-delay 2 \
+            https://archlinux.org/packages/core/any/archlinux-keyring/ \
+            | grep -oE 'archlinux-keyring-[0-9][^"]+\.pkg\.tar\.zst' | head -n1)"
+    
+          if [[ -z "${pkg}" ]]; then
+            echo "Failed to determine archlinux-keyring package filename" >&2
+            exit 1
+          fi
+    
+          curl -fL --retry 5 --retry-connrefused --retry-delay 2 \
+            -o /tmp/archlinux-keyring.pkg.tar.zst \
+            "https://geo.mirror.pkgbuild.com/core/os/any/${pkg}"
+    
+          tar --use-compress-program=unzstd --strip-components=4 --wildcards \
+            -xvf /tmp/archlinux-keyring.pkg.tar.zst usr/share/pacman/keyrings/*
+    
+          sudo install -m0644 archlinux.gpg /usr/share/pacman/keyrings/
+          sudo install -m0644 archlinux-trusted /usr/share/pacman/keyrings/
+          sudo install -m0644 archlinux-revoked /usr/share/pacman/keyrings/
+    
+        popd
+    
         sudo pacman-key --init
-
-        # Ensure repos + mirrors exist before using pacman
-        sudo mkdir -p /etc/pacman.d
-        
-        # If your build root doesn't ship a mirrorlist, create one
-        sudo tee /etc/pacman.d/mirrorlist >/dev/null <<'EOF'
-        Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
-        Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
-        Server = https://ftp.halifax.rwth-aachen.de/archlinux/$repo/os/$arch
-        EOF
-    
-        # Install keyrings via pacman (NO wget, NO TLS issues)
-        sudo pacman -Sy --noconfirm \
-          archlinux-keyring \
-          manjaro-keyring
-    
         sudo pacman-key --populate archlinux manjaro
     
         for gpg_key in ${{ inputs.additional-trusted-gpg }}; do
