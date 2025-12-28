@@ -174,12 +174,11 @@ runs:
             https://archlinux.org/packages/core/any/archlinux-keyring/json/)"
     
           pkg="$(printf '%s' "$json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["filename"])')"
-    
           echo "archlinux-keyring package: $pkg"
-    
+          
           curl -fL --retry 8 --retry-all-errors --retry-connrefused --retry-delay 2 \
             -o /tmp/archlinux-keyring.pkg.tar.zst \
-            "https://geo.mirror.pkgbuild.com/core/os/any/${pkg}"
+            "https://geo.mirror.pkgbuild.com/core/os/x86_64/${pkg}"
     
           tar --use-compress-program=unzstd --strip-components=4 --wildcards \
             -xvf /tmp/archlinux-keyring.pkg.tar.zst usr/share/pacman/keyrings/*
