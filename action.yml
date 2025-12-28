@@ -154,30 +154,31 @@ runs:
     - id: install-keyrings
       shell: bash
       run: |
+        set -euo pipefail
+    
         sudo install -dm755 /usr/share/pacman/keyrings/
-
+    
+        # Manjaro keyring (still via git, fine)
         sudo git clone --depth 1 https://gitlab.manjaro.org/packages/core/manjaro-keyring.git
         pushd manjaro-keyring
           sudo install -m0644 manjaro.gpg /usr/share/pacman/keyrings/
           sudo install -m0644 manjaro-trusted /usr/share/pacman/keyrings/
           sudo install -m0644 manjaro-revoked /usr/share/pacman/keyrings/
         popd
-
-        mkdir -p archlinux-keyring
-        pushd archlinux-keyring
-          wget https://archlinux.org/packages/core/any/archlinux-keyring/download -O /tmp/archlinux-keyring.tar.zst
-          tar --use-compress-program=unzstd --strip-components=4 --wildcards -xvf /tmp/archlinux-keyring.tar.zst usr/share/pacman/keyrings/*
-          sudo install -m0644 archlinux.gpg /usr/share/pacman/keyrings/
-          sudo install -m0644 archlinux-trusted /usr/share/pacman/keyrings/
-          sudo install -m0644 archlinux-revoked /usr/share/pacman/keyrings/
-        popd
-
+    
+        # Initialize pacman keyring early
         sudo pacman-key --init
+    
+        # Install keyrings via pacman (NO wget, NO TLS issues)
+        sudo pacman -Sy --noconfirm \
+          archlinux-keyring \
+          manjaro-keyring
+    
         sudo pacman-key --populate archlinux manjaro
-
+    
         for gpg_key in ${{ inputs.additional-trusted-gpg }}; do
-          sudo pacman-key --keyserver keys.openpgp.org --recv-key $gpg_key
-          sudo pacman-key --lsign-key $gpg_key
+          sudo pacman-key --keyserver keys.openpgp.org --recv-key "$gpg_key"
+          sudo pacman-key --lsign-key "$gpg_key"
         done
     - id: install-arch-install-scripts
       shell: bash
